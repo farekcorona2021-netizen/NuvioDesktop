@@ -686,10 +686,10 @@ jobs:
           release_date="$(date -u +%F)"
           sed -i "s|version=\"0.0.0\"|version=\"${RELEASE_VERSION}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
           sed -i "s|date=\"1970-01-01\"|date=\"${release_date}\"|" flatpak/com.nuvio.media.desktop.metainfo.xml
-          
+
           cp ./scripts/linux/nuvio-flatpak.yml flatpak/nuvio-flatpak.yml
           sed -i "s|\${app_root}|${app_root}|g" flatpak/nuvio-flatpak.yml
-          
+
           flatpak-builder --repo=flatpak-repo --force-clean flatpak-build flatpak/nuvio-flatpak.yml
           flatpak build-bundle flatpak-repo "Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak" com.nuvio.media.desktop
 
@@ -713,11 +713,18 @@ jobs:
           retention-days: 14
 
   linux_deb:
-    name: Linux x64 - DEB
+    name: Linux ${{ matrix.arch }} - DEB
     if: inputs.mode != 'dry-run' && (inputs.target == 'all' || inputs.target == 'linux')
     needs:
       - metadata
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     environment: desktop-release
     env:
       LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64 }}
@@ -773,13 +780,13 @@ jobs:
             exit 1
           fi
 
-          cp "${debs[0]}" "Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
+          cp "${debs[0]}" "Nuvio-Linux-${{ matrix.arch }}-${RELEASE_VERSION}.deb"
 
       - name: Verify DEB
         shell: bash
         run: |
           set -euo pipefail
-          deb_path="Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
+          deb_path="Nuvio-Linux-${{ matrix.arch }}-${RELEASE_VERSION}.deb"
           if [[ ! -f "${deb_path}" ]]; then
             echo "Expected DEB package was not produced: ${deb_path}" >&2
             exit 1
@@ -790,8 +797,8 @@ jobs:
       - name: Upload DEB
         uses: actions/upload-artifact@v7
         with:
-          name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-deb
-          path: Nuvio-Linux-x86_64-${{ needs.metadata.outputs.version }}.deb
+          name: nuvio-desktop-${{ needs.metadata.outputs.version }}-linux-deb-${{ matrix.arch }}
+          path: Nuvio-Linux-${{ matrix.arch }}-${{ needs.metadata.outputs.version }}.deb
           if-no-files-found: error
           retention-days: 14
 
@@ -923,7 +930,7 @@ jobs:
           appimagetool_path="${RUNNER_TEMP}/appimagetool-x86_64.AppImage"
           curl -fsSL -o "${appimagetool_path}" \
             "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGE_TOOL_VERSION}/appimagetool-x86_64.AppImage"
-            
+
           actual_sha256="$(sha256sum "${appimagetool_path}" | awk '{print $1}')"
           if [[ "${actual_sha256}" != "${APPIMAGETOOL_SHA256}" ]]; then
             echo "appimagetool checksum mismatch." >&2
@@ -999,7 +1006,7 @@ jobs:
             fi
             printf 'AppImage update information: %s\n' "${update_info}"
           fi
-          
+
           ls -lh "${appimage_path}"
           if [[ -f "${zsync_path}" ]]; then
             ls -lh "${zsync_path}"
@@ -1049,6 +1056,7 @@ jobs:
             "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+            "release/Nuvio-Linux-arm64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
@@ -1078,6 +1086,7 @@ jobs:
             "release/Nuvio-macOS-x86_64-${RELEASE_VERSION}.dmg"
             "release/Nuvio-Windows-x64-${RELEASE_VERSION}.msi"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.flatpak"
+            "release/Nuvio-Linux-arm64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.deb"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.rpm"
             "release/Nuvio-Linux-x86_64-${RELEASE_VERSION}.AppImage"
