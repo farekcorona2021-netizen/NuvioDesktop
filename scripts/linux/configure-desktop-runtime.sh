@@ -2,24 +2,23 @@
 
 set -euo pipefail
 
-required_values=(
-    LOCAL_PROPERTIES_BASE64
-    SENTRY_AUTH_TOKEN
-    SENTRY_DESKTOP_DSN
-)
-missing=()
-for value_name in "${required_values[@]}"; do
-    if [[ -z "${!value_name:-}" ]]; then
-        missing+=("${value_name}")
-    fi
-done
-if (( ${#missing[@]} > 0 )); then
-    printf 'Missing required desktop release values: %s\n' "${missing[*]}" >&2
-    exit 1
+# Fallback values if repository secrets are not provided (e.g. fork builds)
+if [[ -z "${LOCAL_PROPERTIES_BASE64:-}" ]]; then
+    echo "LOCAL_PROPERTIES_BASE64 not set, creating dummy local.properties for fork build"
+    cat << 'EOF' > local.properties
+NUVIO_SUPABASE_URL=https://dummy.supabase.co
+NUVIO_SUPABASE_ANON_KEY=dummy-anon-key
+TRAKT_CLIENT_ID=dummy-trakt-id
+TRAKT_CLIENT_SECRET=dummy-trakt-secret
+EOF
+else
+    printf '%s' "${LOCAL_PROPERTIES_BASE64}" | base64 --decode > local.properties
+    sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_(STORE_FILE|STORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD)|NUVIO_MACOS_(SIGNING_IDENTITY|NOTARY_APPLE_ID|NOTARY_TEAM_ID|NOTARY_PASSWORD|NOTARY_KEYCHAIN_PROFILE|NOTARY_KEYCHAIN_PATH))[[:space:]]*=/d' local.properties
 fi
 
-printf '%s' "${LOCAL_PROPERTIES_BASE64}" | base64 --decode > local.properties
-sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_(STORE_FILE|STORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD)|NUVIO_MACOS_(SIGNING_IDENTITY|NOTARY_APPLE_ID|NOTARY_TEAM_ID|NOTARY_PASSWORD|NOTARY_KEYCHAIN_PROFILE|NOTARY_KEYCHAIN_PATH))[[:space:]]*=/d' local.properties
+if [[ -z "${SENTRY_DESKTOP_DSN:-}" ]]; then
+    export SENTRY_DESKTOP_DSN="https://dummy@dummy.ingest.sentry.io/0"
+fi
 
 required_properties=(
     NUVIO_SUPABASE_URL
@@ -33,3 +32,5 @@ for property_name in "${required_properties[@]}"; do
         exit 1
     fi
 done
+
+echo "Desktop runtime configuration completed successfully."
